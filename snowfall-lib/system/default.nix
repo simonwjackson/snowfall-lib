@@ -13,6 +13,8 @@
   user-modules-root = snowfall-lib.fs.get-snowfall-file "modules";
 in {
   system = rec {
+    is-nix-on-droid = hasInfix "nix-on-droid";
+
     ## Get the name of a system based on its file path.
     ## Example Usage:
     ## ```nix
@@ -174,11 +176,24 @@ in {
                 ../../modules/nixos/user/default.nix
               ];
           });
+      nix-on-droid-system-builder = args:
+        assert assertMsg (user-inputs ? nix-on-droid) "In order to create Nix-on-Droid systems, you must include `nix-on-droid` as a flake input.";
+          user-inputs.nix-on-droid.lib.nixOnDroidConfiguration
+          (args
+            // {
+              specialArgs =
+                args.specialArgs
+                // {
+                  format = "nix-on-droid";
+                };
+            });
     in
       if virtual-system-type != ""
       then virtual-system-builder
       else if is-darwin target
       then darwin-system-builder
+      else if is-nix-on-droid target
+      then nix-on-droid-system-builder
       else linux-system-builder;
 
     ## Get the flake output attribute for a system target.
@@ -250,7 +265,15 @@ in {
     in {
       inherit channelName system builder output;
 
-      modules = [path] ++ modules ++ (optionals (user-inputs ? home-manager) home-manager-modules);
+      modules =
+        [path]
+        ++ modules
+        ++ (optionals (user-inputs ? home-manager) home-manager-modules)
+        ++ (
+          if is-nix-on-droid system
+          then [../../modules/nix-on-droid/user/default.nix]
+          else []
+        );
 
       specialArgs =
         specialArgs
